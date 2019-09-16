@@ -1,0 +1,27 @@
+---------Queues-------------
+Average of CPU queue is: 114.69
+Max size of the CPU queue is: 347
+Average of Disk1 queue is: 5.69
+Max size of the Disk1 queue is: 12
+Average of Disk2 queue is: 5.36
+Max size of the Disk2 queue is: 11
+Average of Event queue is: 12.61
+Max size of the Event queue is: 24
+
+----------Utilization------------
+Utilization of CPU is: 0.1730
+Utilization of DISK 1 is: 0.0000
+Utilization of DISK 2 is: 0.3910
+
+----------Response Time------------
+CPU average response time is: 2.32
+CPU max response time is: 16
+DISK 1 average response time is: inf
+DISK 1 max response time is: 0
+DISK 2 average response time is: 0.08
+DISK 2 max response time is: 30
+
+----------Throughput------------
+Throughout of CPU is 0.402000 jobs per Unit of Time
+Throughout of DISK 1 is 0.013000 jobs per Unit of Time
+Throughout of DISK 2 is 0.030000 jobs per Unit of Time

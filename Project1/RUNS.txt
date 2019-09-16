@@ -1,0 +1,61 @@
+--------RUN ORIGINAL----------
+SEED 0
+INIT_TIME 0
+FIN_TIME 1000
+ARRIVE_MIN 10
+ARRIVE_MAX 40
+QUIT_PROB 0.2
+CPU_MIN 10
+CPU_MAX 20 
+DISK1_MIN 10
+DISK1_MAX 30
+DISK2_MIN 10
+DISK2_MAX 30
+--------RUN 1----------
+SEED 1
+INIT_TIME 0
+FIN_TIME 1000
+ARRIVE_MIN 10
+ARRIVE_MAX 40
+QUIT_PROB 0.2
+CPU_MIN 10
+CPU_MAX 20 
+DISK1_MIN 10
+DISK1_MAX 30
+DISK2_MIN 10
+DISK2_MAX 30
+
+When increasing "SEED" by 1 compared with the original config.txt, the size of each component queue size increased, the ultilization is
+faster while the the response time and throughput value is lower.
+--------RUN 2----------
+SEED 0
+INIT_TIME 0
+FIN_TIME 1000
+ARRIVE_MIN 20
+ARRIVE_MAX 50
+QUIT_PROB 0.5
+CPU_MIN 20
+CPU_MAX 30 
+DISK1_MIN 20
+DISK1_MAX 40
+DISK2_MIN 20
+DISK2_MAX 20
+
+When inceasing every constants by 10 except "SEED, INIT TIME, FIN_TIME" compared the original config.txt, all value of  the statistic 
+file was running lower.
+--------RUN 3----------
+SEED 0
+INIT_TIME 0
+FIN_TIME 1000
+ARRIVE_MIN 5
+ARRIVE_MAX 35
+QUIT_PROB 0.1
+CPU_MIN 5
+CPU_MAX 15
+DISK1_MIN 5
+DISK1_MAX 25
+DISK2_MIN 5
+DISK2_MAX 25
+
+When decreasing every constants by 5 except "SEED, INIT TIME, FIN_TIME" compared the original config.txt, all value of  the statistic 
+file was running faster.
