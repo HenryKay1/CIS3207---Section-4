@@ -1,3 +1,7 @@
-ls
-cd
-dir
+cd ..
+echo "Hello World!"
+vim
+ifconfig eth0 up
+cat text.txt | wc
+wc -c < text.txt
+emacs &
