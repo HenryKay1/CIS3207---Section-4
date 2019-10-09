@@ -71,35 +71,80 @@ char **splitLine(char *line)
 
 // Function Declarations
 int myShell_cd(char **args);
-int myShell_exit();
+int myShell_clr(char **args);
+int myShell_dir(char **args);
+int myShell_environ(char **args);
+int myShell_echo(char **args);
+int myShell_help(char **args);
+int myShell_pause(char **args);
+int myShell_quit();
 
 // Definitions
-char *builtin_cmd[] = {"cd", "exit"};
+char *builtin_cmd[] = {"cd", "clr", "dir", "environ", "echo", "help", "pause", "quit"};
+// Array of function pointers for call from execShell
+int (*builtin_func[]) (char **) = {&myShell_cd, &myShell_clr, &myShell_dir, &myShell_environ, &myShell_echo, &myShell_help, &myShell_pause, &myShell_quit}; 
 
-int (*builtin_func[]) (char **) = {&myShell_cd, &myShell_exit}; // Array of function pointers for call from execShell
-
-int numBuiltin() // Function to return number of builtin commands
-{
+int numBuiltin(){ // Function to return number of builtin commands
 	return sizeof(builtin_cmd)/sizeof(char *);
 }
 
 // Builtin command definitions
-int myShell_cd(char **args)
-{
-	if (args[1] == NULL) 
-	{
-		printf("myShell: expected argument to \"cd\"\n");
-	} 
-	else 
-	{
-		if (chdir(args[1]) != 0) 
-		{
-			perror("myShell: ");
-		}
-	}
+int myShell_cd(char **args){
+	if (args[1] == NULL) {
+    	fprintf(stderr, "lsh: expected argument to \"cd\"\n");
+  	} else if (chdir(args[1]) != 0) {
+      	perror("lsh");
+    }
+  	return 1;
+}
+
+int myShell_clr(char **args){
+	printf("\033[H\033[2J");
+}
+
+int myShell_dir(char **args){
+	struct dirent *s;
+	DIR *dir = opendir(".");
+	if (dir == NULL){  // opendir returns NULL if couldn't open directory 
+        printf("Could not open current directory" );  
+    } 
+    // for readdir() 
+    while ((s = readdir(dir)) != NULL) 
+            printf("%s\n", s->d_name);   
+    return 0; 
+}
+
+int myShell_environ(char **args){
+	
+}
+
+int myShell_echo(char **args){
+	char str[50];
+	printf("\n Enter input: ");
+	scanf("%[^\n]+", str);
+	printf(" Echo : %s", str);
+
+	return 0;
+}
+
+int myShell_help(char **args){
+	int i;
+	printf("Stephen Brennan's LSH\n");
+	printf("Type program names and arguments, and hit enter.\n");
+	printf("The following are built in:\n");
+
+	for (i = 0; i < numBuiltin(); i++) {
+		printf("  %s\n", builtin_cmd[i]);
+  	}
+
+	printf("Use the man command for information on other programs.\n");
 	return 1;
 }
 
+int myShell_pause(char **args){
+
+}
+ 
 int myShell_exit()
 {
 	QUIT = 1;
