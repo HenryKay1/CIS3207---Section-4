@@ -91,12 +91,23 @@ int numBuiltin(){ // Function to return number of builtin commands
 // Builtin command definitions
 int myShell_cd(char **args){
 	if (args[1] == NULL) {
-    	fprintf(stderr, "lsh: expected argument to \"cd\"\n");
+		//no argument, report current directory
+		char buff[PATH_MAX + 1];
+		if(getcwd(buff, PATH_MAX + 1) == NULL) {
+    		fprintf(stderr, "cwd error in cd\n");
+      		exit(EXIT_FAILURE);
+    	}
+		printf("no <directory> argument found.\nCurrent directory is: %s\n", buff);
+		return 1;
   	} else if (chdir(args[1]) != 0) {
-      	perror("lsh");
+      	perror("chdir");
+    } else {
+      	setenv("PWD",args[1],1); //set environment variable
     }
+  	}
   	return 1;
 }
+
 
 int myShell_clr(char **args){
 	printf("\033[H\033[2J");
@@ -115,7 +126,15 @@ int myShell_dir(char **args){
 }
 
 int myShell_environ(char **args){
-	
+	int i ;
+    if((int)strcmp("id",scan) == 0){
+        printf("%s\n",getenv("USER"));
+        
+    }else{
+        for (i = 0; envp[i]!=NULL; i ++){
+            printf("%s\n",envp[i]);// print all info
+        }
+    }
 }
 
 int myShell_echo(char **args){
@@ -129,9 +148,10 @@ int myShell_echo(char **args){
 
 int myShell_help(char **args){
 	int i;
-	printf("Stephen Brennan's LSH\n");
-	printf("Type program names and arguments, and hit enter.\n");
-	printf("The following are built in:\n");
+	 puts("\n***WELCOME TO MY SHELL HELP***"
+        "\nCopyright @ Tuyen Pham"
+        "\n-Use the shell at your own risk..."
+        "\nList of Commands supported:");
 
 	for (i = 0; i < numBuiltin(); i++) {
 		printf("  %s\n", builtin_cmd[i]);
