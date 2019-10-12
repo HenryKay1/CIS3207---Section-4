@@ -1,7 +1,10 @@
-cd ..
-echo "Hello World!"
-vim
-ifconfig eth0 up
-cat text.txt | wc
+cd
+clr
+help
+ls > out.txt
+echo Hello | wc -c
+vim text.txt
 wc -c < text.txt
-emacs &
+wc <batch.txt>> output.txt
+firefox &
+
