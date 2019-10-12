@@ -165,8 +165,7 @@ int myShell_environ(char **args){
 		dup2(out, STDOUT_FILENO); //STDOUT_FILENO is 1
 		close(out);
 	}
-
-	int i ;
+	
 	while (environ[i]){
         printf("%s\n",envp[i]);// print all info
 		i++:
@@ -302,6 +301,317 @@ int myShell_quit(){
 //ENDS BUILD-IN COMMANDS
 //**************************************************************************************************************************
 
+// Function where the system command is executed
+// input is null terminated list of args
+// launches non builtin cmd, handles io_redirection commands
+// assumes program and program args come before (to the left) of any io redirection
+// sets any index containing io redirection to null, so io redirection isnt passed to exec()
+// always returns 1 to continue execution loop  
+int myshell_launch(char **args){
+  pid_t pid, wpid;
+  int status; 
+  int len = 0;
+  int i = 0; //counter
+  int io_counter = 0;
+  int io_output = 0; // '>'
+  int io_input = 0; // '<'
+  int io_amper = 0; // '&'
+  int io_pipe = 0; // '|'
+  int io_output2 = 0; // '>>'
+  int in, out;
+ 
+  //iterate through args array, determine which io case(s) are needed
+  //if io case found, variable set to equal the position of the redir symbol in args[]
+  for(i=0;i<argsLength(args);i++) {
+    if(strcmp(args[i], redirection[0]) == 0) { 
+      io_input=i; 
+    } else if(strcmp(args[i], redirection[1]) == 0) { 
+      io_output=i; 
+    } else if(strcmp(args[i], redirection[2]) == 0) { 
+      io_output2=i; 
+    } else if(strcmp(args[i], redirection[3]) == 0) { 
+      io_pipe=i; 
+    } else if(strcmp(args[i], redirection[4]) == 0) { 
+        io_amper=i; 
+    }
+  }
+ 
+  //begins large list of if else 
+  //each one represents actions to take for a particular set of io commands
+  if (io_output == 0 && io_input == 0 && io_output2 == 0 && io_pipe == 0){ //if no redirection
+    if( (pid = fork()) < 0){ //forking error
+      perror("fork");
+    } else if (pid == 0){ //child process
+        if(io_amper > 0){
+          args[io_amper] = NULL; 
+        }
+        if(execvp(args[0], args) == -1) {
+          perror("execvp");
+          exit(EXIT_FAILURE);
+        }
+    } else { //parent process
+        if(io_amper > 0) {
+          ;
+        } else {
+          do {
+            wpid = waitpid(pid, &status, WUNTRACED); //allow parent process to wait on the child process for execute
+          } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+        }
+    }
+  } 
+  else if (io_output > 0 && io_input == 0 && io_output2 == 0 && io_pipe == 0){ //if '>' standard output redirection
+    if( (pid = fork()) < 0) { //forking error
+      perror("fork");
+    } else if (pid == 0) { //child, handle redirection in here
+        args[io_output] = NULL; //assumes command and cmd args come before redirection
+        //open file for output redirection
+        out = open(args[io_output +1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+         //replace standard output with output file
+        dup2(out, STDOUT_FILENO); //STDOUT_FILENO is 1
+        close(out); 
+        if(execvp(args[0], args) == -1) {
+          perror("execvp");
+        }
+    } else { //parent process
+        if(io_amper > 0) { // background execution
+          ;
+        } else {
+          do {
+            wpid = waitpid(pid, &status, WUNTRACED);  //allow parent process to wait on the child process for execute
+          } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+        }
+    }
+  }
+  else if (io_output == 0 && io_input > 0 && io_output2 == 0 && io_pipe == 0){ //if '<' standard input redirection
+    if( (pid = fork()) < 0) { //forking error
+      perror("fork");
+    } else if (pid == 0) { //child, handle redirection in here
+        args[io_input] = NULL; //assumes command and cmd args come before redirection
+        //open file for input redirection
+        in = open(args[io_input+1], O_RDONLY);
+         //replace standard input with input file
+        dup2(in, STDIN_FILENO); //STDIN_FILENO is 0
+        close(in); //might need to also close in? not sure...
+        if(execvp(args[0], args) == -1) {
+          perror("execvp");
+        }
+    } else { //parent process
+      if(io_amper > 0) { //background execution
+        ;
+      } else {
+        do {
+          wpid = waitpid(pid, &status, WUNTRACED);  //allow parent process to wait on the child process for execute
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+      }
+    }
+  }
+  else if (io_output == 0 && io_input == 0 && io_output2 > 0 && io_pipe == 0){ //if '>>' standard output redirection
+    if( (pid = fork()) < 0) { //forking error
+      perror("fork");
+    } else if (pid == 0) { //child, handle redirection in here
+        //sets arg index to null so exec doesn't read past cmd and args to cmd
+        args[io_output2] = NULL; //assumes command and cmd args come before redirection        
+        //opens for writing, appending, creating if necessary
+        out = open(args[io_output2+1], O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+         //replace standard input with input file
+        dup2(out, STDOUT_FILENO); //STOUT_FILENO is 1
+        close(out); 
+        if(execvp(args[0], args) == -1) {
+          perror("execvp");
+        }
+    } else { //parent process
+      if(io_amper > 0) {
+        ; //background, exit without waiting
+      } else {
+        do {
+          wpid = waitpid(pid, &status, WUNTRACED);  //allow parent process to wait on the child process for execute
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+      }    
+    }
+  }
+  else if (io_output > 0 && io_input > 0 && io_output2 == 0 && io_pipe == 0){ //if '<' and '>' standard input & output redirection
+    if( (pid = fork()) < 0) { //forking error
+      perror("fork");
+    } else if (pid == 0) { //child, handle redirection in here
+        //sets arg index to null so exec doesn't read past cmd and args to cmd
+        args[io_output] = NULL; //assumes command and cmd args come before redirection
+        args[io_input] = NULL;
+        //open file for input redirection
+        in = open(args[io_input +1], O_RDONLY);
+        //open file for output redirection
+        out = open(args[io_output +1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+         //replace standard output with output file
+        dup2(out, STDOUT_FILENO); //STDOUT_FILENO is 1
+        //replaces standard input with input file
+        dup2(in, STDIN_FILENO);
+        //closing unused file descriptors
+        close(in);
+        close(out); 
+        if(execvp(args[0], args) == -1) {
+          perror("execvp");
+        }
+    } else { //parent process
+      if(io_amper > 0) {
+        ; //background, exit without waiting
+      } else {
+        do {
+          wpid = waitpid(pid, &status, WUNTRACED);  //allow parent process to wait on the child process for execute
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+      }
+    }
+  }
+  else if (io_output == 0 && io_input > 0 && io_output2 > 0 && io_pipe == 0){ //if '<' and '>>' standard input and output redirection
+    if( (pid = fork()) < 0) { //forking error
+      perror("fork");
+    } else if (pid == 0) { //child, handle redirection in here
+        //sets arg index to null so exec doesn't read past cmd and args to cmd
+        args[io_output2] = NULL; //assumes command and cmd args come before redirection
+        args[io_input] = NULL;
+        //open file for input redirection
+        in = open(args[io_input +1], O_RDONLY);
+        //open file for output redirection
+        out = open(args[io_output2 +1], O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+         //replace standard output with output file
+        dup2(out, STDOUT_FILENO); //STDOUT_FILENO is 1
+        //replaces standard input with input file
+        dup2(in, STDIN_FILENO);
+        //closing unused file descriptors
+        close(in);
+        close(out); 
+        if(execvp(args[0], args) == -1) {
+          perror("execvp");
+        }
+    } else { //parent process
+      if(io_amper > 0) {
+        ; //background, dont wait for child process to finish
+      } else {
+        do {
+          wpid = waitpid(pid, &status, WUNTRACED); //allow parent process to wait on the child process for execute
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+      }
+    }
+  }
+  else if (io_pipe > 0){ //if single '|'
+    int j = 0; //counter
+    int x = 0; //counter
+    int z = 1; //counter
+    int status;
+    int pipefd[2]; 
+     
+    char **args2 = malloc((len - io_pipe) * sizeof(char *)); //total length of args (including null ptr) - where the pipe is (so, )
+    if (!args2) { //if malloc error
+      fprintf(stderr, "allocation error\n");
+      exit(EXIT_FAILURE);
+    }
+    do { //puts to the right of pipe into args2
+      args2[j] = args[io_pipe+z];
+      j++;
+      z++;
+    } while (j<len-1-io_pipe); //args len - args null ptr io-pipe position
+    //placing null ptrs
+    args2[j] = NULL;
+    args[io_pipe] = NULL;
+     
+    pipe(pipefd);
+     
+    runleft(pipefd, args);
+    runright(pipefd, args2);
+    close(pipefd[0]);
+    close(pipefd[1]); //closed both file descriptors on pipe
+ 
+    while ((pid = wait(&status)) != -1) { //collects any child processes that have exit()ed
+      fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
+    }
+  }
+  //going back to loop, no quit
+  return 1;
+}
+
+//left of pipe
+void runleft(int pfd[], char **args) {
+  int pid, wpid;
+  int status;
+  int len = 0;
+  int i = 0;
+  int io_input = 0;
+  int in;
+ 
+  for(i=0;i<argsLength(args);i++) { //if any args are io_input, set index
+    if(strcmp(args[i], redirection[0]) == 0) { 
+      io_input=i;  
+    }
+  }
+ 
+  if( (pid = fork()) < 0) { //forking error 
+    perror("runsource fork");
+  } else if (pid == 0) { //child, handle redirection in here
+  
+    if(io_input > 0) {
+      in = open(args[io_input+1], O_RDONLY);
+      dup2(in, STDIN_FILENO); //STDIN_FILENO is 0
+      close(in);
+      args[io_input] = NULL;
+    }
+  
+    dup2(pfd[1],STDOUT_FILENO); //end of this pipe becomes stdout
+    if(execvp(args[0],args) == -1) {
+      perror("execvp");
+    }
+  } else { //parent process
+    close(pfd[1]); //close input side of pipe
+    do {
+      wpid = waitpid(pid, &status, WUNTRACED);//allow parent process to wait on the child process for execute
+    } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+  }
+}
+
+//right of pipe
+void runright(int pfd[], char **args2){
+  int pid, wpid;
+  int len = 0;
+  int i = 0;
+  int io_output = 0;
+  int io_output2 = 0;
+  int io_amper = 0;
+  int out;
+  int status;
+ 
+  for(i=0;i<argsLength(args2);i++) { //iterates through args, if any are redirect, set var to index 
+    if(strcmp(args2[i],redirection[1]) == 0) { 
+      io_output=i; 
+    } else if(strcmp(args2[i], redirection[2]) == 0) { 
+        io_output2=i; 
+    } else if(strcmp(args2[i], redirection[4]) == 0) { 
+        io_amper=i; 
+    }
+  }
+  if( (pid = fork()) < 0) { //forking error 
+    perror("runsource fork");
+  } else if (pid == 0) { //child, handle redirection in here
+    if(io_output > 0) {
+      out = open(args2[io_output +1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+      //replace standard output with output file
+      dup2(out, STDOUT_FILENO); //STDOUT_FILENO is 1
+      close(out); 
+      args2[io_output] = NULL;
+    } else if(io_output2 > 0) {
+      out = open(args2[io_output2 +1], O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+      //replace standard output with output file
+      dup2(out, STDOUT_FILENO); //STDOUT_FILENO is 1
+      close(out); 
+      args2[io_output2] = NULL;
+    }
+    dup2(pfd[0], STDIN_FILENO); //end of this pipe becomes stdin
+    if(execvp(args2[0],args2) == -1) {
+      perror("execvp");
+    }
+  } else { //parent process
+      do {
+        pid = waitpid(pid, &status, WUNTRACED);//allow parent process to wait on the child process for execute
+      } while (!WIFEXITED(status) && !WIFSIGNALED(status)); //wait until specified process is exited or killed
+  }
+}
+
 // Function to read a line from command into the buffer
 char *readLine(){
 	char *line = (char *)malloc(sizeof(char) * 1024); // Dynamically Allocate Buffer
@@ -358,31 +668,6 @@ char **splitLine(char *line){
 	}
 	tokens[pos] = NULL;
 	return tokens;
-}
-
-
-// Function where the system command is executed
-int myShellLaunch(char **args){
-	pid_t pid, wpid;
-	int status;
-	pid = fork();
-	if (pid == 0){
-		// The Child Process
-		if (execvp(args[0], args) == -1){
-			perror("myShell: ");
-		}
-	exit(EXIT_FAILURE);
-	} else if (pid < 0){
-		//Forking Error
-		perror("myShell: ");
-	} else {
-		// The Parent Process
-	do {
-      wpid = waitpid(pid, &status, WUNTRACED); //allow parent process to wait on the child process for execute
-    } 
-	while (!WIFEXITED(status) && !WIFSIGNALED(status));
-	}
-	return 1;
 }
 
 // Function to execute command from terminal
