@@ -686,6 +686,29 @@ int execShell(char **args){
 	return ret;
 }
 
+void loop(void){
+  char *line;
+  char **args;
+  int status;
+  char curDir[PATH_MAX + 1]; 
+  printf("\nWELCOME TO MY SHELL!!!\n");
+  //if no batchfile, shell loop begins
+  do {
+    if(getcwd(curDir, PATH_MAX + 1) == NULL) {
+        fprintf(stderr, "cwd error\n");
+        exit(EXIT_FAILURE);
+    }
+    struct passwd *pws; //for getting id
+    pws = getpwuid(geteuid());
+    printf("%s@%s$ ", pws->pw_name, curDir); //prompt
+    line = readLine(); //get line from user
+    args = splitLine(line);  //split line into tokens
+    status = execShell(args); //run tokenized line, lots of work in this function
+    free(line);
+    free(args);
+  } while (status); //continue while execute returns positive status
+}
+
 // Read and Parse from Config File
 int readConfig(){
 	FILE *fptr;
