@@ -686,99 +686,103 @@ int execShell(char **args){
 	return ret;
 }
 
-void loop(void){
+//main: handles batchfile
+//passes batchfile lines to execute(), exits when complete
+//if no batchfile, enters cmd loop accepting user input
+int main(int argc, char **argv){
   char *line;
   char **args;
   int status;
   char curDir[PATH_MAX + 1]; 
-  printf("\nWELCOME TO MY SHELL!!!\n");
-  //if no batchfile, shell loop begins
-  do {
-    if(getcwd(curDir, PATH_MAX + 1) == NULL) {
-        fprintf(stderr, "cwd error\n");
-        exit(EXIT_FAILURE);
+  //if there is a batchfile:
+  //batchfile is split into lines 
+  //lines are processed through the exit function
+  //function then exits
+  if (argc > 1) {
+    int i; //counter
+    FILE *fp;
+    char **batch_lines;
+    char *token;
+    
+    char *filename = argv[1];
+    if((fp = fopen(filename, "r")) == NULL) { //open batchfile for reading
+      printf("fileopen error\n");
+      return -1;
     }
-    struct passwd *pws; //for getting id
-    pws = getpwuid(geteuid());
-    printf("%s@%s$ ", pws->pw_name, curDir); //prompt
-    line = readLine(); //get line from user
-    args = splitLine(line);  //split line into tokens
-    status = execShell(args); //run tokenized line, lots of work in this function
-    free(line);
-    free(args);
-  } while (status); //continue while execute returns positive status
-}
+ 
+    fseek(fp, 0, SEEK_END); //go to end of batchfile
+    int inputsize = ftell(fp); //this is size of batchfile
+    char *batchfile = malloc(inputsize * sizeof(char)); //batchfile char array is now correct size
+    if (!batchfile) { //err check
+      fprintf(stderr, "allocation error\n");
+      exit(EXIT_FAILURE);
+    }
+ 
+    fseek(fp,0,SEEK_SET); //go back to beginning of file
+ 
+    for (i = 0; i < inputsize; i++) { //fill *batchfile
+      fscanf(fp, "%c", &batchfile[i]);
+    }
+    batchfile[i] = EOF;
+    fclose(fp); //done with file
+    int buffsize = MYSHELL_TOKEN_SIZE;
+    int position = 0;
+    char **buffertokens = malloc(buffsize * sizeof(char*));
+ 
+    if (!buffertokens) { //err check
+      fprintf(stderr, "allocation error\n");
+      exit(EXIT_FAILURE);
+    }
+ 
+    token = strtok(batchfile, BATCH_TOK_DELIM);
+     
+    while (token != NULL) {
+      buffertokens[position] = token;
+      position++;
+      if (position >= buffsize) { //if reallocation is needed
+        buffsize += MYSHELL_TOKEN_SIZE;
+        buffertokens = realloc(buffertokens, buffsize * sizeof(char*));
+        if(!buffertokens) {
+          fprintf(stderr, "allocation error\n");
+          exit(EXIT_FAILURE);
+        }
+      }
+      token = strtok(NULL, BATCH_TOK_DELIM);
+    }
+    buffertokens[position] = NULL;
+     
+    for(i = 0; i < (position-1); i++) {
+      batch_lines = splitLine(buffertokens[i]);
+      status = execShell(batch_lines);
+      if (status < 1) {
+        //freeing memory before shutdown
+        free(batch_lines);
+        free(buffertokens);
+        return EXIT_SUCCESS;
+      } 
+    }
 
-// Read and Parse from Config File
-int readConfig(){
-	FILE *fptr;
-	char line[200];
-	char **args;
-	fptr = fopen("config.txt", "r");
-	if (fptr == NULL){
-		printf("Unable to find config file.\n");
-		return 1;
-	}else{
-		while(fgets(line, sizeof(line), fptr) != NULL){
-			printf("\n%s", line);
-			args=splitLine(line);
-			if(strcmp(args[0], "export")==0)
-				strcpy(SHELL_NAME, args[1]);
-		}
-	}
-	free(args);
-	fclose(fptr);
-	return 1;
-}
-
-// When myShell is called Interactively
-int myShellInteract(){
-	char *line;
-	char **args;
-	while(QUIT == 0){
-		printf("%s> ", SHELL_NAME);
-		line=readLine();
-		args=splitLine(line);
-		execShell(args);
-		free(line);
-		free(args);
-	}
-	return 1;
-}
-
-// When myShell is called with a Script as Argument
-int myShellScript(char filename[100]){
-	printf("Received Script. Opening %s", filename);
-	FILE *fptr;
-	char line[200];
-	char **args;
-	fptr = fopen(filename, "r");
-	if (fptr == NULL){
-		printf("\nUnable to open file.");
-		return 1;
-	} else {
-		printf("\nFile Opened. Parsing. Parsed commands displayed first.");
-		while(fgets(line, sizeof(line), fptr)!= NULL){
-			printf("\n%s", line);
-			args=splitLine(line);
-			execShell(args);
-		}
-	}
-	free(args);
-	fclose(fptr);
-	return 1;
-}
-
-int main(int argc, char **argv){
-	// Read from myShell Configuration Files
-	readConfig();
-	// Parsing commands Interactive mode or Script Mode
-	if (argc == 1)
-		myShellInteract();
-	else if (argc == 2)
-		myShellScript(argv[1]);
-	else
-		printf("\nInvalid Number of Arguments");
-	// Exit the Shell
-	return EXIT_SUCCESS;
+  } else {
+    //Loop getting input and executing.
+    // No batchfile, run command loop accepting user input from stdin
+     printf("\nWELCOME TO MY SHELL!!!\n");
+    //if no batchfile, shell loop begins
+    do {
+      if(getcwd(curDir, PATH_MAX + 1) == NULL) {
+          fprintf(stderr, "cwd error\n");
+          exit(EXIT_FAILURE);
+      }
+      struct passwd *pws; //for getting id
+      pws = getpwuid(geteuid());
+      printf("%s@%s$ ", pws->pw_name, curDir); //prompt
+      line = readLine(); //get line from user
+      args = splitLine(line);  //split line into tokens
+      status = execShell(args); //run tokenized line, lots of work in this function
+      free(line);
+      free(args);
+    } while (status); //continue while execute returns positive status
+  }
+  
+  //shutdown
+  return EXIT_SUCCESS;
 }
