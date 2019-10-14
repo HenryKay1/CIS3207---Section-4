@@ -5,6 +5,6 @@ ls > out.txt
 echo Hello | wc -c
 vim text.txt
 wc -c < text.txt
-wc <batch.txt>> output.txt
+wc <batch.txt>> out.txt
 firefox &
 
