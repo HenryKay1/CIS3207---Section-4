@@ -64,41 +64,7 @@ char **open_dictionary(char *filename) {
     return output;
 }
 
-/* This section was taken from the slides provided and nearly word from 
-    word from the book. Essentially, it creates the listener file descriptor, 
-    opens the socket descriptor, sets the socketopt. */
-int open_listenfd(int port) {
-    int listenfd, optval = 1;
-    struct sockaddr_in serverAddress;
 
-    /* creates a socket descriptor from connection*/
-    if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-      return -1;
-    }
-
-    /* gets rid of the "Address already in use" error */
-    if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int)) < 0){
-      return -1;
-    }
-
-    /* Reset the serverAddress struct, setting all of it's bytes to zero.
-        bind() is then called, associating the port number with the socket fd. */
-    bzero((char *) &serverAddress, sizeof(serverAddress));
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddress.sin_port = htons((unsigned short)port);
-    if (bind(listenfd, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){
-      return -1;
-    }
-
-    /* Prepare the socket to allow accept() calls. Twenty is the backlog accoring
-        to the book, this is the max num of connection. Only that max will be placed 
-        on queue. Accept() then will be called after that max is met. */
-    if (listen(listenfd, 20) < 0) {
-        return -1;
-    }
-    return listenfd;
-}
 
 /* create and return the fifo queue struct (lab01 learned stuff) */
 Queue *createQueue() {
@@ -164,3 +130,46 @@ Node *pop(Queue *queue) {
     return temp;
 }
 
+void* logThreadFunc(void* arg) {
+	while(1) {
+		/* take phrase out of log buffer with mutual exclusion
+      by lock log mutex. Then while log buffer is empty,
+      wait to consume from log buffer */
+		pthread_mutex_lock(&log_mutex); 
+		while(logCount == 0) { 
+			pthread_cond_wait(&log_cv_cs, &log_mutex); 
+		}
+
+		/* Remove phrase from log buffer to be written to log file
+      if the log buffer is empty, we print a message */
+		char* phraseToAppend;
+		if (logCount == 0) {
+			printf("log buffer is empty! Can't remove anything!\n"); 
+		} else { 
+      // otherwise remove a phrase from the log buffer
+			phraseToAppend = logBuff[logFront]; // store phrase to remove from log buffer in phrase
+			logFront = (logFront + 1) % LOG_BUF_LEN; // reset logFront when it reaches 100th index (this makes it circular)
+			logCount--; // decrement count of phrases in log buffer
+		}
+		#ifdef TESTING
+		printf("Phrase taken out of log buffer to append to log file: %s", phraseToAppend); // FOR TESTING
+		#endif
+		logFile_ptr = fopen("logFile.txt", "a"); // open the log file for appending
+		if (logFile_ptr == NULL) { // if the log file was not opened successfully
+			printf("Error opening log file for appending!\n"); // print error message
+			exit(1);
+		}
+    // append phrase taken out of log buffer to log file, fputs returns nonnegative integer (>= 0) on success and EOF on error
+		if (fputs(phraseToAppend, logFile_ptr) >= 0) { 
+			#ifdef TESTING
+			printf("Successfully appended to log file!\n"); // FOR TESTING
+			#endif
+		} else { 
+      // otherwise something went wrong appending phrase to log file
+			printf("Something went wrong appending phrase from log buffer to log file..\n"); // print error message
+		}
+		fclose(logFile_ptr); // close file when done appending
+		pthread_mutex_unlock(&log_mutex); // unlock log mutex
+		pthread_cond_signal(&log_cv_pd); // signal log buffer not full since we took 
+	}
+}
