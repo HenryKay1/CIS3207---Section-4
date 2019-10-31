@@ -8,7 +8,34 @@
 #include <unistd.h>
 #include "dictionary.h"
 
+/*Define variables*/
+pthread_t threadPool[NUM_WORKER_THREADS], logThread; // declare global thread pool to use as worker threads
+pthread_mutex_t job_mutex, log_mutex; // declare mutexes to use for job and log buffers
+pthread_cond_t job_cv_cs, job_cv_pd; // delcare condition variables for job buffer
+pthread_cond_t log_cv_cs, log_cv_pd; // delcare condition varialbes for log buffer
+int jobBuff[JOB_BUF_LEN]; // array of ints that represent the socket for a client trying to connect
+char logBuff[LOG_BUF_LEN][PHRASE_SIZE]; // array of phrases to be written to log file
+int jobLen = JOB_BUF_LEN; // capacity of job buffer
+int logLen = LOG_BUF_LEN; // capacity of log buffer
+int jobCount, logCount = 0; // number of items in each buffer
+int jobFront = -1; // used to keep track of front of job buffer
+int jobRear = 0; // used to keep track of rear of job buffer
+int logFront = -1; // used to keep track of front of log buffer
+int logRear = 0; // used to keep track of rear of log buffer
 
+int connectionPort = 0; // declare global connectionPort to be used
+char* dictionaryName = ""; // declare global dictionaryName to be used
+char dictionary[DICTIONARY_SIZE][MAX_WORD_SIZE]; // dictionary to store words from dictionaryName file in
+int wordsInDictionary = 0; // global var to keep track of word count of dictionary - to be used when searching
+
+struct sockaddr_in client;
+int clientLen = sizeof(client);
+int connectionSocket, clientSocket;
+//char recvBuffer[MAX_WORD_SIZE];
+char* clientMessage = "Hello! You're connected to the server. Send the server a word to spell check!\n";
+char* msgRequest = "Send me another word to spell check! Or, enter the escape key and hit enter to quit this connection..\n";
+char* msgClose = "Goodbye!\n";
+FILE* logFile_ptr; // log file pointer to open log file with
 
 /* Returns a char** to all of the words in the dictionary file. This opens the 
     designated file the user puts in or the default, which is dictionary.txt and 
