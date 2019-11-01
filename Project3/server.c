@@ -271,3 +271,24 @@ void* logThreadFunc(void* arg) {
 		pthread_cond_signal(&log_cv_pd); // signal log buffer not full since we took 
 	}
 }
+
+//Function to search words from Dictionary.txt
+int searchForWordInDict(char dictionary[][MAX_WORD_SIZE], char* wordToFind) {
+	int i = 0; // index to keep track of words in dictionary as we iterate through it
+  // while i is less than wordsInDictionary - 1 (since we're starting i at 0)
+  // attempt to find wordToFind in dictionary, if it was found
+	while(i < wordsInDictionary - 1) { 
+		if (strcmp(dictionary[i], wordToFind) == 0) { 
+			#ifdef TESTING
+			printf("WORD FOUND!\n");
+			#endif
+			return 1; // return 1 that word was found
+		}
+		i++; // increment i to check next word in dictionary
+	} 
+	// Otherwise, word was not found
+	#ifdef TESTING
+	printf("Word NOT found!\n");
+	#endif
+	return 0; // return 0 to indicate word was not found in dictionary
+}
