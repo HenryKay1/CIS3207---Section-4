@@ -14,7 +14,7 @@
 #define BUFF_SIZE 256
 #define DEFAULT_DICTIONARY "dictionary.txt" // to be used if user does not specify a dictionary to use
 #define DEFAULT_LOG_FILE "logFile.txt"
-#define DEFAULT_PORT 8888 // to be used if no port specified by  user
+#define DEFAULT_PORT 7000 // to be used if no port specified by  user
 #define DICTIONARY_LENGTH 99171 /* how many lines are in provided dictionary */
 #define JOB_BUF_LEN 100 // size of job buffer which holds socket descriptors
 #define LOG_BUF_LEN 100 // size of log buffer
@@ -23,16 +23,10 @@
 #define EXIT_NUM -1
 
 /********* Function Declartion ***********/
-//These define the FIFO queues and the creating nodes, the pushing, and pulling of said queues.
-Queue *createQueue();
-Node *createNode(struct sockaddr_in, char *, int);
-void push(Queue *, struct sockaddr_in, char *, int);
-Node *pop(Queue *);
 
-/* read the dictionary function */
-char **open_dictionary(char *);
-
-//file descriptor for opening the listener 
+/* This section was taken from the slides provided and nearly word from 
+    word from the book. Essentially, it creates the listener file descriptor, 
+    opens the socket descriptor, sets the socketopt. */
 int open_listenfd(int);
 
 /* both the worker thread function that prompts the user for their input,
