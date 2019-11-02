@@ -1,0 +1,7 @@
+#Tuyen Pham, tuh39709, TUID: 915591991
+#3207 Project 3: Network spell checker
+#Lab Section 4
+
+server: server.c open_listenfd.c server.h
+	gcc -o server server.c open_listenfd.c -lpthread
+
