@@ -37,6 +37,57 @@ char* msgRequest = "Send me another word to spell check! Or, enter the escape ke
 char* msgClose = "Goodbye!\n";
 FILE* logFile_ptr; // log file pointer to open log file with
 
+int main(int argc, char** argv) {
+	/* Initialize mutexes*/
+
+  // check that job mutex initialized
+	if(pthread_mutex_init(&job_mutex, NULL) != 0) { 
+		printf("Error initializing job mutex!\n");
+		return -1;
+	}
+  // check that log mutex initialized
+	if(pthread_mutex_init(&log_mutex, NULL) != 0) {
+		printf("Error initializing log mutex!\n");
+		return -1;
+	}
+	/* Initialize condition variables*/
+
+  // check that job buffer consume condition variable initialized
+	if (pthread_cond_init(&job_cv_cs, NULL) != 0) { 
+		printf("Error initializing job buffer consume condition variable!\n");
+		return -1;
+	}
+  // check that job buffer consume condition variable initialized
+	if (pthread_cond_init(&job_cv_pd, NULL) != 0) { 
+		printf("Error initializing job buffer produce condition variable!\n");
+		return -1;
+	}
+  // check that job buffer consume condition variable initialized
+	if (pthread_cond_init(&log_cv_cs, NULL) != 0) {
+		printf("Error initializing log buffer consume condition variable!\n");
+		return -1;
+	}
+  // check that job buffer consume condition variable initialized
+	if (pthread_cond_init(&log_cv_pd, NULL) != 0) { 
+		printf("Error initializing log buffer produce condition variable!\n");
+		return -1;
+	}
+
+	// Create threads - worker threads and log thread
+	for (int i = 0; i < NUM_WORKER_THREADS; i++) {
+		if(pthread_create(&threadPool[i], NULL, workerThreadFunc, NULL) == 0) { // pthread_create() will return 0 on success
+			#ifdef TESTING
+			printf("Worker thread created.\n");
+			#endif
+		}
+	}
+  // create log thread to write phrases from log buffer to log file - // pthread_create() will return 0 on success
+	if (pthread_create(&logThread, NULL, logThreadFunc, NULL) == 0) { 
+		#ifdef TESTING
+		printf("Log thread created.\n");
+		#endif
+	}
+}
 /* Returns a char** to all of the words in the dictionary file. This opens the 
     designated file the user puts in or the default, which is dictionary.txt and 
     coopies the list for comparsion.  (simple fgets from lap01)*/
