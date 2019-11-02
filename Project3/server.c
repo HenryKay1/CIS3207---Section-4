@@ -87,6 +87,54 @@ int main(int argc, char** argv) {
 		printf("Log thread created.\n");
 		#endif
 	}
+// If no port or dictionaryName is specified by user, use the default port and default dictionaryName
+	if (argc == 1){
+		printf("No port number entered. Plese use the default port 7000!\n");
+		// use DEFAULT_PORT and DEFAULT_DICTIONARY
+		connectionPort = DEFAULT_PORT;
+		dictionaryName = DEFAULT_DICTIONARY;
+		#ifdef TESTING
+		printf("THE DICTIONARY FILE IS: %s\n", dictionaryName); // FOR TESTING
+		#endif
+	} else if (argc == 2) { // check whether second argument is a port number or a dictionaryName file
+		// If it is just a port number, be sure to make dictionaryName the DEFAULT_DICTIONARY
+		if (strstr(argv[1], ".txt") == NULL){ // if the second arg does not contain .txt, it's safe to assume it's a port number
+			connectionPort = atoi(argv[1]); // set connectionPort to second arg
+			dictionaryName = DEFAULT_DICTIONARY; // set dictionaryName to DEFAULT_DICTIONARY since no dictionaryName was specified
+			#ifdef TESTING
+			printf("Assigned dictionaryName to DEFAULT_DICTIONARY!\n"); // FOR TESTING
+			#endif
+		} 
+		// If it is just a dictionaryName, be sure to make connectionPort the DEFAULT_PORT
+		if (strstr(argv[1], ".txt") != NULL) { // if the second arg contains .txt, it's safe to assume it's a dictionaryName file
+			connectionPort = DEFAULT_PORT; // set connectionPort to DEFAULT_PORT since no port was specified
+			dictionaryName = argv[1]; // set dictionaryName to user-specified dictionaryName file name
+			#ifdef TESTING
+			printf("Assigned connectionPort to DEFAULT_PORT!\n"); // FOR TESTING
+			#endif
+		}
+		printf("You entered 2 arguments! Where port number is %d and dictionary is %s\n", connectionPort, dictionaryName); // FOR TESTING
+	} else if (argc == 3) { // check whether second arg is a port number and third arg is a dictionaryName OR second arg is a dictionaryName and third arg is a port number
+		// If the second arg is a port number AND the third arg is a dictionaryName file, assign those args to the connectionPort and dictionaryName global variables respectively
+		if ((strstr(argv[1], ".txt") == NULL) && (strstr(argv[2], ".txt") != NULL)) {
+			#ifdef TESTING
+			printf("Second arg was: %s\n", argv[1]); // FOR TESTING
+			printf("Third arg was: %s\n", argv[2]); // FOR TESTING
+			#endif
+			connectionPort = atoi(argv[1]); // set connectionPort to user-specified port
+			dictionaryName = argv[2]; // set dictionaryName to user-specified dictionaryName
+		// Else-If the second arg is a dictionaryName AND the third arg is a port number, assign those args to the dictionaryName and connectionPort global variables respectively
+		} else if ((strstr(argv[1], ".txt") != NULL) && (strstr(argv[2], ".txt") == NULL)) {
+			#ifdef TESTING
+			printf("Second arg was: %s\n", argv[1]); // FOR TESTING
+			printf("Third arg was: %s\n", argv[2]); // FOR TESTING
+			#endif
+			dictionaryName = argv[1]; // set dictionaryName to user-specified dictionaryName
+			connectionPort = atoi(argv[2]); // set connectionPort to user-specified port
+		} else {
+			printf("Please enter an appropriate command.\nFor example: './server', './server PORTNUMBER', './server DICTIONARYFILE', './server PORTNUMBER DICTIONARYFILE', './server DICTIONARYFILE PORTNUMBER'\n");
+			return -1;
+		}
 }
 /* Returns a char** to all of the words in the dictionary file. This opens the 
     designated file the user puts in or the default, which is dictionary.txt and 
