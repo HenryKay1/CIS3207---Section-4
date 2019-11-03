@@ -135,6 +135,40 @@ int main(int argc, char** argv) {
 			printf("Please enter an appropriate command.\nFor example: './server', './server PORTNUMBER', './server DICTIONARYFILE', './server PORTNUMBER DICTIONARYFILE', './server DICTIONARYFILE PORTNUMBER'\n");
 			return -1;
 		}
+// FOR TESTING
+		printf("You entered 3 arguments! Where port number is %d and dictionary is %s\n", connectionPort, dictionaryName); 
+	} else { 
+    // otherwise too many arguments were entered, print error message asking user to enter proper number of args and return -1
+		printf("Please enter an appropriate command.\nFor example: './server', './server PORTNUMBER', './server DICTIONARYFILE', './server PORTNUMBER DICTIONARYFILE', './server DICTIONARYFILE PORTNUMBER'\n");
+		return -1;
+	}
+
+	// Attempt to open dictionaryName file to load words into dictionary
+	FILE* dictionaryName_ptr = fopen(dictionaryName, "r"); // open dictionary file for reading
+	if (dictionaryName_ptr == NULL) { // if dictionaryName_ptr is NULL, there was an issue opening the file
+		printf("Error opening dictionary file!\n"); // print an error
+		return -1; // return -1 to exit program
+	} else { // otherwise dictionary file was opened for reading successfully
+		// Store words from dictionary file into dictionary[][]
+		int i = 0;
+    // store the word from the dictionary into dictionary data structure (two-dimensional char array in our case) fgets() also takes care of appending '\0' to the end of the word :) - using a while with fgets() like this ensures we don't read past the end of the statically allocated dictionary[][]
+		while((fgets(dictionary[i], sizeof(dictionary[i]), dictionaryName_ptr) != NULL) && (i < (DICTIONARY_SIZE - 1))) {  
+			wordsInDictionary++;
+			#ifdef TESTINGDICTIONARY
+			printf("WORD: %s", dictionary[i]); // print each word read into dictionary from dictionary FOR TESTING
+			#endif
+			i++;
+		}
+		#ifdef TESTINGDICTIONARY
+		printf("Word count of words in the dictionary: %d\n", wordsInDictionary); // FOR TESTING
+		#endif
+		fclose(dictionaryName_ptr); // close dictionary file
+	}
+
+	// We can't use ports below 1024 and ports above 65535 don't exist.
+	if (connectionPort < 1024 || connectionPort > 65535){
+		printf("Port number is either too low(below 1024), or too high(above 65535).\n");
+		return -1;
 }
 /* Returns a char** to all of the words in the dictionary file. This opens the 
     designated file the user puts in or the default, which is dictionary.txt and 
