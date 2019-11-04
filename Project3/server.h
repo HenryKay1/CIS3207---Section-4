@@ -32,7 +32,7 @@ int open_listenfd(int);
   and checks the word against the dictionary. The log thread which is used
   to log all the activity from the clients requests to the server */
 void *workerThreadFunc(void *);
-void *loggerThreadFunc(void *);
+void *logThreadFunc(void *);
 
 //search words from Dictionary.txt
 int searchForWordInDict(char list_of_words[][MAX_WORD_SIZE], char* wordToFind);
