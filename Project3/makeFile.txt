@@ -5,3 +5,10 @@
 server: server.c open_listenfd.c server.h
 	gcc -o server server.c open_listenfd.c -lpthread
 
+test: server.c open_listenfd.c server.h
+	gcc -o testing server.c open_listenfd.c -lpthread -D TESTING
+	./testing
+
+testdictionary: server.c open_listenfd.c server.h
+	gcc -o testingdictionary server.c open_listenfd.c -lpthread -D TESTINGDICTIONARY
+	./testingdictionary
