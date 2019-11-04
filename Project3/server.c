@@ -1,12 +1,21 @@
+/*
+Tuyen Pham
+TUID 915591991
+CIS 3207 - Section 4
+11/04/2019
+Project 3
+This project is to build the network spell checker
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
-#include <pthread.h>
-#include <string.h>
+#include <pthread.h> // for working with threads, mutexes, and condition variables
+#include <string.h> // used for comparing args at start ie. checking for port number vs. dictionary file
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
+#include <netinet/in.h> // need for sockaddr_in struct to use with accept()
 #include <unistd.h>
-#include "dictionary.h"
+#include "server.h"
 
 /*Define variables*/
 pthread_t threadPool[NUM_WORKER_THREADS], logThread; // declare global thread pool to use as worker threads
@@ -31,7 +40,7 @@ int wordsInDictionary = 0; // global var to keep track of word count of dictiona
 struct sockaddr_in client;
 int clientLen = sizeof(client);
 int connectionSocket, clientSocket;
-//char recvBuffer[MAX_WORD_SIZE];
+
 char* clientMessage = "Hello! You're connected to the server. Send the server a word to spell check!\n";
 char* msgRequest = "Send me another word to spell check! Or, enter the escape key and hit enter to quit this connection..\n";
 char* msgClose = "Goodbye!\n";
@@ -87,7 +96,8 @@ int main(int argc, char** argv) {
 		printf("Log thread created.\n");
 		#endif
 	}
-// If no port or dictionaryName is specified by user, use the default port and default dictionaryName
+
+	// If no port or dictionaryName is specified by user, use the default port and default dictionaryName
 	if (argc == 1){
 		printf("No port number entered. Plese use the default port 7000!\n");
 		// use DEFAULT_PORT and DEFAULT_DICTIONARY
@@ -135,7 +145,7 @@ int main(int argc, char** argv) {
 			printf("Please enter an appropriate command.\nFor example: './server', './server PORTNUMBER', './server DICTIONARYFILE', './server PORTNUMBER DICTIONARYFILE', './server DICTIONARYFILE PORTNUMBER'\n");
 			return -1;
 		}
-// FOR TESTING
+    // FOR TESTING
 		printf("You entered 3 arguments! Where port number is %d and dictionary is %s\n", connectionPort, dictionaryName); 
 	} else { 
     // otherwise too many arguments were entered, print error message asking user to enter proper number of args and return -1
@@ -169,114 +179,75 @@ int main(int argc, char** argv) {
 	if (connectionPort < 1024 || connectionPort > 65535){
 		printf("Port number is either too low(below 1024), or too high(above 65535).\n");
 		return -1;
-}
-/* Returns a char** to all of the words in the dictionary file. This opens the 
-    designated file the user puts in or the default, which is dictionary.txt and 
-    coopies the list for comparsion.  (simple fgets from lap01)*/
-char **open_dictionary(char *filename) {
-    FILE *fd;
-    char **output = malloc(DICTIONARY_LENGTH *sizeof(char *) + 1);
-    char line [BUFF_SIZE];
-    int index = 0;
+	}
+	printf("Waiting to make a connection.. :)\n");
 
-    /* this is a fault if file is entered wrong */
-    fd = fopen(filename, "r");
-    if(fd == NULL) {
-      printf("Couldn't open file dictionary file.\n");
-      exit(1);
-    }
+	// Use open_listenfd in server.h (from Ch. 11 O'Halloran) to get socket descriptor to listen for incoming connections
+	connectionSocket = open_listenfd(connectionPort);
+	if (connectionSocket == -1){ // if connectionSocket is -1
+		printf("Could not connect to %s, maybe try another port number?\n", argv[1]); // print an error
+		return -1; // return -1 to end program
+	}
 
-    while((fgets(line, BUFF_SIZE, fd)) != NULL) {
-      output[index] = (char *) malloc(strlen(line) *sizeof(char *) + 1);
-      int temp = strlen(line) - 2;
-      line[temp] = '\0';
-      strcpy(output[index], line);
-      index++;
-    }
-    fclose(fd);
-    return output;
-}
+	// Continously accept connections to process once currently connected client quits so long as a worker thread is available for servicing
+	while(1) { 
+		/* accept() waits until a user connects to the server, writing information about that server into the sockaddr_in client.
+		If the connection is successful, we obtain A SECOND socket descriptor. 
+		There are two socket descriptors being used now:
+		One by the server to listen for incoming connections.
+		The second that was just created that will be used to communicate with the connected user. */
+		if ((clientSocket = accept(connectionSocket, (struct sockaddr*)&client, &clientLen)) == -1){
+			printf("Error connecting to client.\n");
+			return -1;
+		}
 
+		// Add clientSocket to job buffer inside job mutex
+		pthread_mutex_lock(&job_mutex); // lock mutex for job buffer
+		while(jobCount == JOB_BUF_LEN) {// while job buffer is full
+			pthread_cond_wait(&job_cv_pd, &job_mutex); // wait for job buffer to NOT be full
+		}
 
+		// Insert clientSocket into jobBuffer
+		if (jobCount == JOB_BUF_LEN) { // if the job buffer is full
+			printf("Job buffer is FULL!\n"); // print that it's full
+		} else {
+      // if the job buffer is empty, make the item the first in the queue, update front and rear
+			if (jobCount == 0) {
+				jobFront = 0;
+				jobRear = 0;
+			} 
+			jobBuff[jobRear] = clientSocket; // add the clientSocket to the job buffer
+			jobCount++; // increment count of socket descriptors in the job buffer
+			#ifdef TESTING
+			printf("\nsocket descriptor inserted into job buffer: %d\n", jobBuff[jobRear]); // FOR TESTING
+			#endif
+			jobRear = (jobRear + 1) % JOB_BUF_LEN; // reset jobRear when it reaches the 100th index (this makes it circular)
+		} 
 
-/* create and return the fifo queue struct (lab01 learned stuff) */
-Queue *createQueue() {
-    Queue *temp = (Queue *)malloc(sizeof(Queue));
-    temp->front = NULL;
-    temp->queue_size = 0;
-    return temp;
-}
-
-/* makes a Node struct and also returns it which is used in the 
-    queue struct, which is also part of the fifo queue
-    previously explained */
-Node *createNode(struct sockaddr_in client, char *word, int socket) {
-    Node *temp = (Node *)malloc(sizeof(Node));
-    temp->client = client;
-    if(word == NULL) {
-      temp->word = word;
-    } else {
-      temp->word = malloc(sizeof(char *) *strlen(word) + 1);
-      if(temp->word == NULL){
-        printf("Unable to allocate memory for Node.\n");
-        exit(1);
-      }
-      strcpy(temp->word, word);
-    }
-    temp->next = NULL;
-    temp->client_socket = socket;
-    return temp;
+		pthread_mutex_unlock(&job_mutex); // unlock job mutex
+		pthread_cond_signal(&job_cv_cs); // signal job buffer NOT EMPTY
+		printf("Connection success!\n"); // print connection success to server
+    // send message to client prompting them to enter a word to check
+		send(clientSocket, clientMessage, strlen(clientMessage), 0); 
+	}
+	return 0;
 }
 
-/* linked list esk push function that pushes the node onto the queue struct 
-    which again was used in lab01 */
-void push(Queue *queue, struct sockaddr_in client, char *word, int socket) {
-    Node *temp = createNode(client, word, socket);
-
-    /* if the node is empty, simply place at the end of the queue */
-    if (queue->queue_size == 0) {
-      queue->front = temp;
-    } else {
-        Node *head = queue->front;
-        while(head->next != NULL) {
-            head = head->next;
-        }
-        head->next = temp;
-      }
-    queue->queue_size++;
-    return;
-}
-
-/* simple pop function, pops the first node off the queue (again from lab01) */
-Node *pop(Queue *queue) {
-    /* simply returns NULL, should the queue be empty */
-    if (queue->front == NULL) {
-      queue->queue_size = 0;
-      return NULL;
-    }
-
-    /* simply moves the next node front as the orignal front node was popped */
-    Node *temp = queue->front;
-    queue->front = queue->front->next;
-    queue->queue_size--;
-    free(queue->front); /* gotta free! */
-    return temp;
-}
-
+//Function for worker Thread
 void* workerThreadFunc(void* arg) {
 	while (1) {
 		// take socket descriptor out of job buffer to use
 		pthread_mutex_lock(&job_mutex); // lock job mutex for job buffer	
-    // while loop to check if size of job buffer is empty
+    	// while loop to check if size of job buffer is empty
 		while(jobCount == 0) {
-      // have the consumer (the worker thread) wait until the job buffer is signaled NOT empty
+      		// have the consumer (the worker thread) wait until the job buffer is signaled NOT empty
 			pthread_cond_wait(&job_cv_cs, &job_mutex); 
 		}
 		#ifdef TESTING
 		printf("job count of job buffer BEFORE removing: %d\n", jobCount); // FOR TESTING
 		#endif
 
-    // socket descriptor to be removed from job buffer
+    	// socket descriptor to be removed from job buffer
 		int socketDesc; 
 		// Remove socket descriptor from job buffer to use
 		if (jobCount == 0) { // if the job buffer is empty
@@ -295,9 +266,10 @@ void* workerThreadFunc(void* arg) {
 
 
 		/**** RECEIVE A WORD TO USE FOR SPELL-CHECKING ****/
-		char* word = calloc(MAX_WORD_SIZE, 1); // allocate memory for word you're going to receive from client with calloc(max size you'll accept, 1);
-		while(recv(socketDesc, word, MAX_WORD_SIZE, 0)) { // using recv() with socketDesc we took out of job buffer, can then assume word from client has been received and stored in our allocated word var
-			
+		// allocate memory for word you're going to receive from client with calloc(max size you'll accept, 1);
+		char* word = calloc(MAX_WORD_SIZE, 1); 
+		// using recv() with socketDesc we took out of job buffer, can then assume word from client has been received and stored in our allocated word var
+		while(recv(socketDesc, word, MAX_WORD_SIZE, 0)) { 
 			if (strlen(word) <= 1) { // if nothing was entered, continue
 				continue;
 			}
@@ -378,14 +350,16 @@ void* logThreadFunc(void* arg) {
 			printf("log buffer is empty! Can't remove anything!\n"); 
 		} else { 
       // otherwise remove a phrase from the log buffer
-			phraseToAppend = logBuff[logFront]; // store phrase to remove from log buffer in phrase
-			logFront = (logFront + 1) % LOG_BUF_LEN; // reset logFront when it reaches 100th index (this makes it circular)
+      // store phrase to remove from log buffer in phrase and then reset logFront when it reaches 100th index
+			phraseToAppend = logBuff[logFront]; 
+			logFront = (logFront + 1) % LOG_BUF_LEN; 
 			logCount--; // decrement count of phrases in log buffer
 		}
 		#ifdef TESTING
 		printf("Phrase taken out of log buffer to append to log file: %s", phraseToAppend); // FOR TESTING
 		#endif
-		logFile_ptr = fopen("logFile.txt", "a"); // open the log file for appending
+    // open the log file for appending
+		logFile_ptr = fopen("logFile.txt", "a"); 
 		if (logFile_ptr == NULL) { // if the log file was not opened successfully
 			printf("Error opening log file for appending!\n"); // print error message
 			exit(1);
