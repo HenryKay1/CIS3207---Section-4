@@ -63,3 +63,39 @@ int mount_fs(char *disk_name)
     printf("mount_fs()\t called successfully: file system [%s] mounted.\n", disk_name);
     return 0;
 }
+
+int umount_fs(char *disk_name)
+{
+    if(disk_name == NULL) return -1;
+
+    /* write directory info */
+    int i, j = 0;
+    file_info* file_ptr = (file_info*)dir_info;
+    char buf[BLOCK_SIZE];
+    memset(buf, 0, BLOCK_SIZE);
+    char* block_ptr = buf;
+
+    for (i = 0; i < MAX_FILE; ++i) {
+        if(dir_info[i].used == true) {
+            memcpy(block_ptr, &dir_info[i], sizeof(dir_info[i]));
+            block_ptr += sizeof(file_info);
+        }
+    }
+
+    block_write(super_block_ptr->dir_index, buf);
+
+    /* clear file descriptors */
+    for(j = 0; j < MAX_FILE_DESCRIPTOR; ++j) {
+        if(fd_table[j].used == 1) {
+            fd_table[j].used = false;
+            fd_table[j].file = -1;
+            fd_table[j].offset = 0;
+        }
+    }
+
+    free(dir_info);
+    close_disk();
+    printf("umount_fs()\t called successfully: file system [%s] umounted.\n", disk_name);
+    return 0;
+}
+
