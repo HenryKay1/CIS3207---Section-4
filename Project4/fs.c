@@ -360,3 +360,76 @@ int fs_write(int fildes, void *buf, size_t nbyte)
     return write_count;
 }
 
+int fs_get_filesize(int fildes){
+    if(!fd_table[fildes].used){
+        fprintf(stderr, "fs_get_filesize()\t error: Invalid file descriptor.\n");
+        return -1;
+    }
+    return dir_info[fd_table[fildes].file].size;
+}
+
+int fs_lseek(int fildes, off_t offset)
+{
+    if (offset > dir_info[fd_table[fildes].file].size || offset < 0){
+        fprintf(stderr, "fs_lseek()\t error: Can't set the file pointer beyond the file range.\n");
+        return -1;
+    } else if(!fd_table[fildes].used){
+        fprintf(stderr, "fs_lseek()\t error: Invalid file descriptor.\n");
+        return -1;
+    } else {
+        fd_table[fildes].offset = (int)offset;
+        printf("fs_lseek()\t called successfully.\n");
+        return 0;
+    }
+}
+
+int fs_truncate(int fildes, off_t length)
+{
+    char file_index = fd_table[fildes].file;
+    file_info* file  = &dir_info[file_index];
+
+    if(!fd_table[fildes].used){
+        fprintf(stderr, "fs_truncate()\t error: Invalid file descriptor.\n");
+        return -1;
+    }
+
+    if (length > file->size || length < 0) {
+        fprintf(stderr, "fs_truncate()\t error: Can't set the offset beyond the file range.\n");
+        return -1;
+    }
+
+    /* free blocks */
+    int new_block_num = (int) (length + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int i;
+    int block_index = file->head;
+    for (i = 0; i < new_block_num; ++i) {
+        block_index = find_next_block(block_index, file_index);
+    }
+    while (block_index > 0){
+        char buf[BLOCK_SIZE] = "";
+        if (block_index < BLOCK_SIZE){
+            block_read(super_block_ptr->data_index, buf);
+            buf[block_index] = '\0';
+            block_write(super_block_ptr->data_index, buf);
+        } else {
+            block_read(super_block_ptr->data_index + 1, buf);
+            buf[block_index - BLOCK_SIZE] = '\0';
+            block_write(super_block_ptr->data_index + 1, buf);
+        }
+        block_index = find_next_block(block_index, file_index);
+    }
+
+    /* modify file information */
+    file->size = (int)length;
+    file->num_blocks = new_block_num;
+
+    /* truncate fd offset */
+    for(i = 0; i < MAX_FILE_DESCRIPTOR; i++) {
+        if(fd_table[i].used == true && fd_table[i].file == file_index) {
+            fd_table[i].offset = (int)length;
+        }
+    }
+    printf("fs_truncate()called successfully.\n");
+    return 0;
+}
+
