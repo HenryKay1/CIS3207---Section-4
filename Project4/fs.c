@@ -433,3 +433,82 @@ int fs_truncate(int fildes, off_t length)
     return 0;
 }
 
+char find_file(char* name)
+{
+    char i;
+
+    for(i = 0; i < MAX_FILE; i++) {
+        if(dir_info[i].used == 1 && strcmp(dir_info[i].name, name) == 0) {
+            return i;  // return the file index
+        }
+    }
+
+    return -1;         // file not found
+}
+
+int find_free_file_des(char file_index)
+{
+    int i;
+
+    for(i = 0; i < MAX_FILE_DESCRIPTOR; i++) {
+        if(fd_table[i].used == false) {
+            fd_table[i].used = true;
+            fd_table[i].file = file_index;
+            fd_table[i].offset = 0;
+            return i;  // return the file descriptor number
+        }
+    }
+
+    fprintf(stderr, "find_free_file_des()\t error: no available file descriptor.\n");
+    return -1;         // no empty file descriptor available
+}
+
+int find_free_block(char file_index)
+{
+    char buf1[BLOCK_SIZE] = "";
+    char buf2[BLOCK_SIZE] = "";
+    block_read(super_block_ptr->data_index, buf1);
+    block_read(super_block_ptr->data_index + 1, buf2);
+    int i;
+
+    for(i = 4; i < BLOCK_SIZE; i++) {
+        if(buf1[i] == '\0') {
+            buf1[i] = (char)(file_index + 1);
+            block_write(super_block_ptr->data_index, buf1);
+            return i;  // return block number
+        }
+    }
+    for(i = 0; i < BLOCK_SIZE; i++) {
+        if(buf2[i] == '\0') {
+            buf2[i] = (char)(file_index + 1);
+            block_write(super_block_ptr->data_index, buf2);
+            return i;  // return block number
+        }
+    }
+    fprintf(stderr, "find_free_block()\t error: no available blocks.\n");
+    return -1;         // no free blocks
+}
+
+int find_next_block(int current, char file_index){
+    char buf[BLOCK_SIZE] = "";
+    int i;
+
+    if (current < BLOCK_SIZE){
+        block_read(super_block_ptr->data_index, buf);
+        for(i = current + 1; i < BLOCK_SIZE; i++) {
+            if (buf[i] == (file_index + 1)){
+                return i;
+            }
+        }
+    } else {
+        block_read(super_block_ptr->data_index + 1, buf);
+        for(i = current - BLOCK_SIZE + 1; i < BLOCK_SIZE; i++) {
+            if (buf[i] == (file_index + 1)){
+                return i + BLOCK_SIZE;
+            }
+        }
+    }
+
+    return -1; // no next block
+}
+
