@@ -161,3 +161,202 @@ int fs_create(char *name)
     }
 }
 
+int fs_delete(char *name)
+{
+    char i;
+
+    for(i = 0; i < MAX_FILE; ++i) {
+        if(strcmp(dir_info[i].name, name) == 0) {
+            char file_index = i;
+            file_info* file = &dir_info[i];
+            int block_index = file->head;
+            int block_count = file->num_blocks;
+
+            if(dir_info[i].fd_count != 0) { // File is currently open
+                fprintf(stderr, "fs_delete()\t error: file [%s] is currently open.\n",name);
+                return -1;
+            }
+
+            // Remove file information
+            super_block_ptr->dir_len--;
+            file->used = false;
+            strcpy(file->name, "");
+            file->size = 0;
+            file->fd_count = 0;
+
+            /* Free file blocks */
+            char buf1[BLOCK_SIZE] = "";
+            char buf2[BLOCK_SIZE] = "";
+            block_read(super_block_ptr->data_index, buf1);
+            block_read(super_block_ptr->data_index + 1, buf2);
+            while (block_count > 0){
+                if (block_index < BLOCK_SIZE){
+                    buf1[block_index] = '\0';
+                } else {
+                    buf2[block_index - BLOCK_SIZE] = '\0';
+                }
+                block_index = find_next_block(file->head, file_index);
+                block_count--;
+            }
+
+            dir_info[i].head = -1;
+            dir_info[i].num_blocks = 0;
+            block_write(super_block_ptr->data_index, buf1);
+            block_write(super_block_ptr->data_index + 1, buf2);
+
+            printf("fs_delete()\t called successfully: file [%s] deleted.\n", name);
+            return 0;
+        }
+    }
+
+    fprintf(stderr, "fs_delete()\t error: file [%s] does not exists\n", name);
+    return -1;
+}
+
+int fs_read(int fildes, void *buf, size_t nbyte)
+{
+    if(nbyte <= 0 || !fd_table[fildes].used) {
+        return -1;
+    }
+
+    int i, j = 0;
+    char *dst = buf;
+    char block[BLOCK_SIZE] = "";
+    char file_index = fd_table[fildes].file;
+    file_info* file = &dir_info[file_index];
+    int block_index = file->head;
+    int block_count = 0;
+    int offset = fd_table[fildes].offset;
+
+    /* load current block */
+    while (offset >= BLOCK_SIZE){
+        block_index = find_next_block(block_index, file_index);
+        block_count++;
+        offset -= BLOCK_SIZE;
+    }
+    block_read(block_index, block);
+
+    /* read current block */
+    int read_count = 0;
+    for(i = offset; i < BLOCK_SIZE; i++) {
+        dst[read_count++] = block[i];
+        if(read_count == (int)nbyte) {
+            fd_table[fildes].offset += read_count;
+            return read_count;
+        }
+    }
+    block_count++;
+
+    /* read the following blocks */
+    strcpy(block,"");
+    while(read_count < (int)nbyte && block_count <= file->num_blocks) {
+        block_index = find_next_block(block_index, file_index);
+        strcpy(block,"");
+        block_read(block_index, block);
+        for(j=0; j < BLOCK_SIZE; j++, i++) {
+            dst[read_count++] = block[j];
+            if(read_count == (int)nbyte ) {
+                fd_table[fildes].offset += read_count;
+                return read_count;
+            }
+        }
+        block_count++;
+    }
+    fd_table[fildes].offset += read_count;
+    return read_count;
+}
+
+int fs_write(int fildes, void *buf, size_t nbyte)
+{
+    if(nbyte <= 0 || !fd_table[fildes].used) {
+        return -1;
+    }
+
+    int i = 0;
+    char *src = buf;
+    char block[BLOCK_SIZE] = "";
+    char file_index = fd_table[fildes].file;
+    file_info* file = &dir_info[file_index];
+    int block_index = file->head;
+    int size = file->size;
+    int block_count = 0;
+    int offset = fd_table[fildes].offset;
+
+    /* load current block */
+    while (offset >= BLOCK_SIZE){
+        block_index = find_next_block(block_index, file_index);
+        block_count++;
+        offset -= BLOCK_SIZE;
+    }
+
+    int write_count = 0;
+    if (block_index != -1){
+        /* write current block */
+        block_read(block_index, block);
+        for(i = offset; i < BLOCK_SIZE; i++) {
+            block[i] = src[write_count++];
+            if (write_count == (int)nbyte || write_count == strlen(src)) {
+                block_write(block_index, block);
+                fd_table[fildes].offset += write_count;
+                if(size < fd_table[fildes].offset){
+                    file->size = fd_table[fildes].offset;
+                }
+                return write_count;
+            }
+        }
+        block_write(block_index, block);
+        block_count++;
+    }
+
+    /* write the allocated blocks */
+    strcpy(block, "");
+    while(write_count < (int)nbyte && write_count < strlen(src) && block_count < file->num_blocks) {
+        block_index = find_next_block(block_index, file_index);
+        for(i = 0; i < BLOCK_SIZE; i++) {
+            block[i] = src[write_count++];
+            if(write_count == (int)nbyte || write_count == strlen(src)) {
+                block_write(block_index, block);
+                fd_table[fildes].offset += write_count;
+                if(size < fd_table[fildes].offset){
+                    file->size = fd_table[fildes].offset;
+                }
+                return write_count;
+            }
+        }
+        block_write(block_index, block);
+        block_count++;
+    }
+
+    /* write into new blocks */
+    strcpy(block, "");
+    while(write_count < (int)nbyte && write_count < strlen(src)) {
+        block_index = find_free_block(file_index);
+        file->num_blocks++;
+        if (file->head == -1){
+            file->head = block_index;
+        }
+        if (block_index < 0){
+            fprintf(stderr, "fs_write()\t error: No free blocks.\n");
+            return -1;
+        }
+        for(i = 0; i < BLOCK_SIZE; i++) {
+            block[i] = src[write_count++];
+            if(write_count == (int)nbyte || write_count == strlen(src)) {
+                block_write(block_index, block);
+                fd_table[fildes].offset += write_count;
+                if(size < fd_table[fildes].offset){
+                    file->size = fd_table[fildes].offset;
+                }
+                return write_count;
+            }
+        }
+        block_write(block_index, block);
+    }
+
+    fd_table[fildes].offset += write_count;
+    if(size < fd_table[fildes].offset){
+        file->size = fd_table[fildes].offset;
+    }
+    return write_count;
+}
+
