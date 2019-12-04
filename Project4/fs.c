@@ -512,3 +512,67 @@ int find_next_block(int current, char file_index){
     return -1; // no next block
 }
 
+int main()
+{
+    int i;
+    char* disk_name = "RootDir";
+    if(make_fs(disk_name) < 0) {
+        fprintf(stderr, "make_fs()\t error.\n");
+    }
+
+    if(mount_fs(disk_name) < 0) {
+        fprintf(stderr, "mount_fs()\t error.\n");
+    }
+
+    if(fs_create("test.txt") < 0) {
+        fprintf(stderr, "fs_create()\t error.\n");
+    }
+
+    /* fs_delete() test */
+    if(fs_delete("test.txt") < 0) {
+        fprintf(stderr, "fs_delete()\t error.\n");
+    }
+
+    if(fs_create("test.txt") < 0) {
+        fprintf(stderr, "fs_create()\t error.\n");
+    }
+
+    /* fs_write() test */
+    int fd1;
+    if((fd1 = fs_open("test.txt")) < 0) {
+        fprintf(stderr, "fs_open()\t error.\n");
+    }
+    int fd2;
+    if((fd2 = fs_open("test.txt")) < 0) {
+        fprintf(stderr, "fs_open()\t error.\n");
+    }
+
+    char str1[BLOCK_SIZE * 2];
+    for(i = 0; i < BLOCK_SIZE / 2; i++) {
+        str1[i] = 'a';
+        str1[i + BLOCK_SIZE / 2] = 'b';
+        str1[i + BLOCK_SIZE] = 'c';
+        str1[i + BLOCK_SIZE * 3 / 2] = 'd';
+    }
+    char str2[BLOCK_SIZE * 2];
+    for(i = 0; i < BLOCK_SIZE / 2; i++) {
+        str2[i] = 'e';
+        str2[i + BLOCK_SIZE / 2] = 'f';
+        str2[i + BLOCK_SIZE] = 'g';
+        str2[i + BLOCK_SIZE * 3 / 2] = 'h';
+    }
+    fs_write(fd1, str1, BLOCK_SIZE * 2);
+    fs_write(fd1, str2, BLOCK_SIZE * 2);
+
+    /* fs_lseek() test */
+    char str3[BLOCK_SIZE * 2];
+    for(i = 0; i < BLOCK_SIZE / 2; i++) {
+        str3[i] = 'i';
+        str3[i + BLOCK_SIZE / 2] = 'j';
+        str3[i + BLOCK_SIZE] = 'k';
+        str3[i + BLOCK_SIZE * 3 / 2] = 'l';
+    }
+    fs_lseek(fd2, BLOCK_SIZE * 2);
+    fs_write(fd2, str3, BLOCK_SIZE * 2);
+}
+
