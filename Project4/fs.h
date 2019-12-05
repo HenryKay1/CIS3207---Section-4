@@ -33,9 +33,10 @@ typedef struct
 {
     bool used;                   // whether the file descriptor is being used
     char file;                   // file index
-    int offset;             // read offset used by fs_read()
+    int offset;                 // read offset used by fs_read()
 } file_descriptor;
 
+/*Define file system management functions*/
 int make_fs(char *disk_name);
 int mount_fs(char *disk_name);
 int umount_fs(char *disk_name);
@@ -51,6 +52,7 @@ int fs_truncate(int fildes, off_t length);
 
 /* Helper function */
 char find_file(char* name);
+char copy_file(char* name);
 int find_free_file_des(char file_index);
 int find_free_block(char file_index);
 int find_next_block(int current, char file_index);
