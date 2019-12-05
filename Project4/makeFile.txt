@@ -1,0 +1,6 @@
+#Tuyen Pham, tuh39709, TUID: 915591991
+#3207 Project 4: Implement a simple file system on top of a virtual disk
+#Lab Section 4
+
+filesystem: fs.c disk.c
+	gcc -o filesystem fs.c disk.c
