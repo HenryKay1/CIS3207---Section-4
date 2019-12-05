@@ -9,14 +9,18 @@ super_block*    super_block_ptr;               // Super block
 file_info*      dir_info;                      // Directory info
 file_descriptor fd_table[MAX_FILE_DESCRIPTOR]; // File descriptor table
 
+/*create a fresh and empty file system on the virtual disk
+  open the disk and write the necessary meta-information for the file system*/
 int make_fs(char *disk_name)
 {
-    make_disk(disk_name);
-    open_disk(disk_name);
+    make_disk(disk_name);//make disk_name
+    open_disk(disk_name);//open disk_name
 
     /* Initialize the super block */
     super_block_ptr = (super_block*)malloc(sizeof(super_block));
-    if (super_block_ptr == NULL) return -1;
+    if (super_block_ptr == NULL){
+        return -1;
+    }
     super_block_ptr->dir_index = 1;
     super_block_ptr->dir_len = 0;
     super_block_ptr->data_index = 2;
@@ -34,19 +38,23 @@ int make_fs(char *disk_name)
 
     close_disk();
     printf("make_fs()\t called successfully.\n");
-    return 0;
+    return 0;// create file_system success
 }
 
+/*mount a file system that is stored on a virtual disk
+  Open the disk and load the meta-information to handle the file system operations*/
 int mount_fs(char *disk_name)
 {
-    if(disk_name == NULL) return -1;
-    open_disk(disk_name);
+    if(disk_name == NULL){//disk_name is empty
+        return -1;
+    }
+    open_disk(disk_name);//open disk_name
 
     /* read super block */
     char buf[BLOCK_SIZE] = "";
-    memset(buf, 0, BLOCK_SIZE);
-    block_read(0, buf);
-    memcpy(&super_block_ptr, buf, sizeof(super_block_ptr));
+    memset(buf, 0, BLOCK_SIZE);//fill a block memory
+    block_read(0, buf); //read block of data from buffer
+    memcpy(&super_block_ptr, buf, sizeof(super_block_ptr));//copy the memory allocation from buffer to super block
 
     /* read directory info */
     dir_info = (file_info*)malloc(BLOCK_SIZE);
@@ -64,17 +72,21 @@ int mount_fs(char *disk_name)
     return 0;
 }
 
+/*unmount the file system from a virtual disk
+  write back all meta-information so the disk reflects all changes that were made to the file system*/
 int umount_fs(char *disk_name)
 {
-    if(disk_name == NULL) return -1;
-
+    if(disk_name == NULL){ // disk_name is empty
+        return -1;
+    }
     /* write directory info */
     int i, j = 0;
-    file_info* file_ptr = (file_info*)dir_info;
+    file_info* file_ptr = (file_info*)dir_info;// define the file_ptr pointer
     char buf[BLOCK_SIZE];
     memset(buf, 0, BLOCK_SIZE);
     char* block_ptr = buf;
 
+    //iterate the for loop to get the block_ptr
     for (i = 0; i < MAX_FILE; ++i) {
         if(dir_info[i].used == true) {
             memcpy(block_ptr, &dir_info[i], sizeof(dir_info[i]));
@@ -92,13 +104,13 @@ int umount_fs(char *disk_name)
             fd_table[j].offset = 0;
         }
     }
-
     free(dir_info);
     close_disk();
     printf("umount_fs()\t called successfully: file system [%s] umounted.\n", disk_name);
     return 0;
 }
 
+//open file system for reading and writing and the file descriptor is returned to the calling function
 int fs_open(char *name)
 {
     char file_index = find_file(name);
@@ -113,14 +125,15 @@ int fs_open(char *name)
         return -1;
     }
 
-    dir_info[file_index].fd_count++;
+    dir_info[file_index].fd_count++;//increment the number of file descriptor of the dir_info index
     printf("fs_open()\t called successfully: file [%s] opened.\n", name);
     return fd;
 }
 
+//the file descriptor fildes is closed
 int fs_close(int fildes)
 {
-    if(fildes < 0 || fildes >= MAX_FILE_DESCRIPTOR || !fd_table[fildes].used) {
+    if(fildes < 0 || fildes >= MAX_FILE_DESCRIPTOR || !fd_table[fildes].used) {//compare fildes with file descriptor and file descriptor table
         return -1;
     }
 
@@ -133,12 +146,14 @@ int fs_close(int fildes)
     return 0;
 }
 
+//create a new file in the file system
 int fs_create(char *name)
 {
     char file_index = find_file(name);
 
     if (file_index < 0){  // Create file
         char i;
+        //iterate the maximum length for a file name, a vlue of 0 is returned if success otherwise failure
         for(i = 0; i < MAX_FILE; i++) {
             if(dir_info[i].used == false) {
                 super_block_ptr->dir_len++;
@@ -155,16 +170,18 @@ int fs_create(char *name)
         }
         fprintf(stderr, "fs_create()\t error: exceed the maximum file number.\n");
         return -1;
-    } else {              // File already exists
+    } else {  // File already exists
         fprintf(stderr, "fs_create()\t error: file [%s] already exists\n",name);
         return 0;
     }
 }
 
+/*delete the file with the path and name from the directory of file system and frees all data blocks and meta-information
+  It return -1 on failure when the file name does not exist otherwise return 0*/
 int fs_delete(char *name)
 {
     char i;
-
+    //iterate to the maximum length of file
     for(i = 0; i < MAX_FILE; ++i) {
         if(strcmp(dir_info[i].name, name) == 0) {
             char file_index = i;
@@ -208,11 +225,11 @@ int fs_delete(char *name)
             return 0;
         }
     }
-
     fprintf(stderr, "fs_delete()\t error: file [%s] does not exists\n", name);
     return -1;
 }
 
+//the function to read nbytes of data from the file referenced by the descriptor fildes
 int fs_read(int fildes, void *buf, size_t nbyte)
 {
     if(nbyte <= 0 || !fd_table[fildes].used) {
@@ -266,12 +283,14 @@ int fs_read(int fildes, void *buf, size_t nbyte)
     return read_count;
 }
 
+/*the function attempts to write nbyte bytes of data to the file referenced by the descriptor fildes from the buffer
+  It assumes that the buffer buf holds at least nbyte bytes.*/
 int fs_write(int fildes, void *buf, size_t nbyte)
 {
-    if(nbyte <= 0 || !fd_table[fildes].used) {
+    if(nbyte <= 0 || !fd_table[fildes].used) {//compare nbyte with 0 and fd_table descriptor in used
         return -1;
     }
-
+    //define some variables for writing the disk
     int i = 0;
     char *src = buf;
     char block[BLOCK_SIZE] = "";
@@ -360,29 +379,32 @@ int fs_write(int fildes, void *buf, size_t nbyte)
     return write_count;
 }
 
+//function to return the current size of the file pointed to by the file descriptor fildes.
 int fs_get_filesize(int fildes){
     if(!fd_table[fildes].used){
         fprintf(stderr, "fs_get_filesize()\t error: Invalid file descriptor.\n");
-        return -1;
+        return -1;//the fildes is invalid
     }
     return dir_info[fd_table[fildes].file].size;
 }
 
+//function to set the file pointer associated with the file descriptor fildes to the argument offset.
 int fs_lseek(int fildes, off_t offset)
 {
     if (offset > dir_info[fd_table[fildes].file].size || offset < 0){
         fprintf(stderr, "fs_lseek()\t error: Can't set the file pointer beyond the file range.\n");
-        return -1;
+        return -1;//failure
     } else if(!fd_table[fildes].used){
         fprintf(stderr, "fs_lseek()\t error: Invalid file descriptor.\n");
-        return -1;
+        return -1;//failure
     } else {
         fd_table[fildes].offset = (int)offset;
         printf("fs_lseek()\t called successfully.\n");
-        return 0;
+        return 0;//success
     }
 }
 
+//function causes the file referenced by fildes to be truncated to length bytes in size.
 int fs_truncate(int fildes, off_t length)
 {
     char file_index = fd_table[fildes].file;
@@ -433,19 +455,22 @@ int fs_truncate(int fildes, off_t length)
     return 0;
 }
 
+/*Helper functions*/
+
+//function to file index
 char find_file(char* name)
 {
     char i;
-
     for(i = 0; i < MAX_FILE; i++) {
         if(dir_info[i].used == 1 && strcmp(dir_info[i].name, name) == 0) {
             return i;  // return the file index
         }
     }
 
-    return -1;         // file not found
+    return -1; // file not found
 }
 
+//function to find the file descriptor
 int find_free_file_des(char file_index)
 {
     int i;
@@ -458,11 +483,11 @@ int find_free_file_des(char file_index)
             return i;  // return the file descriptor number
         }
     }
-
     fprintf(stderr, "find_free_file_des()\t error: no available file descriptor.\n");
-    return -1;         // no empty file descriptor available
+    return -1;   // no empty file descriptor available
 }
 
+//function to find the free block 
 int find_free_block(char file_index)
 {
     char buf1[BLOCK_SIZE] = "";
@@ -489,6 +514,7 @@ int find_free_block(char file_index)
     return -1;         // no free blocks
 }
 
+//function to find the next block
 int find_next_block(int current, char file_index){
     char buf[BLOCK_SIZE] = "";
     int i;
@@ -515,7 +541,7 @@ int find_next_block(int current, char file_index){
 int main()
 {
     int i;
-    char* disk_name = "RootDir";
+    char* disk_name = "mydisk";
     if(make_fs(disk_name) < 0) {
         fprintf(stderr, "make_fs()\t error.\n");
     }
@@ -574,5 +600,117 @@ int main()
     }
     fs_lseek(fd2, BLOCK_SIZE * 2);
     fs_write(fd2, str3, BLOCK_SIZE * 2);
-}
 
+    /* fs_truncate() test */
+    fs_truncate(fd2, BLOCK_SIZE * 5 / 2);
+    char str4[BLOCK_SIZE * 3 / 2];
+    for(i = 0; i < BLOCK_SIZE / 2; i++) {
+        str4[i] = 'm';
+        str4[i + BLOCK_SIZE / 2] = 'n';
+        str4[i + BLOCK_SIZE] = 'o';
+    }
+    fs_write(fd2, str4, BLOCK_SIZE * 3 / 2);
+
+    if(fs_close(fd1) < 0) {
+        fprintf(stderr, "fs_close()\t error.\n");
+    }
+
+    if(fs_close(fd2) < 0) {
+        fprintf(stderr, "fs_close()\t error.\n");
+    }
+
+    if(umount_fs(disk_name) < 0) {
+        fprintf(stderr, "umount_fs()\t error.\n");
+    }
+
+    if(mount_fs(disk_name) < 0) {
+        fprintf(stderr, "mount_fs()\t error.\n");
+    }
+
+    if((fd1 = fs_open("test.txt")) < 0) {
+        fprintf(stderr, "fs_open()\t error.\n");
+    }
+
+    /* fs_read() Test */
+    char buf1[BLOCK_SIZE * 4] = "";
+    char val1[BLOCK_SIZE * 4];
+    for(i = 0; i < BLOCK_SIZE / 2; i++) {
+        val1[i] = 'a';
+        val1[i + BLOCK_SIZE / 2] = 'b';
+        val1[i + BLOCK_SIZE] = 'c';
+        val1[i + BLOCK_SIZE * 3 / 2] = 'd';
+        val1[i + BLOCK_SIZE * 2] = 'i';
+        val1[i + BLOCK_SIZE * 5 / 2] = 'm';
+        val1[i + BLOCK_SIZE * 3] = 'n';
+        val1[i + BLOCK_SIZE * 7 / 2] = 'o';
+    }
+    int fd3;
+    if((fd3 = fs_open("test.txt")) < 0) {
+        fprintf(stderr, "fs_open()\t error.\n");
+    }
+    if(fs_read(fd3, buf1, BLOCK_SIZE * 4) < 0) {
+        fprintf(stderr, "fs_read()\t error.\n");
+    } else {
+        printf("fs_read()\t called successfully.\n");
+    }
+    for (i = 0; i < BLOCK_SIZE * 4; ++i) {
+        if (buf1[i] != val1[i]) {
+            fprintf(stderr, "fs_read()\t error: Content [%d] error: [%c] and [%c].\n", i, buf1[i], val1[i]);
+            break;
+        }
+    }
+
+    /* fs_get_filesize() Test */
+    int file_size;
+    if((file_size = fs_get_filesize(fd1)) < 0) {
+        fprintf(stderr, "fs_get_filesize()\t error.\n");
+    } else {
+        printf("fs_get_filesize()\t called successfully: The file size is %d\n", file_size);
+    }
+
+    /* multiple file test */
+    char j;
+    int k;
+    for (j = 0; j < 63; ++j) {
+        /* create */
+        char* file_name = (char*)malloc(9);
+        char index[2];
+        index[0] = (char) (j + 48);
+        index[1] = '\0';
+        strcat(file_name, "test");
+        strcat(file_name, index);
+        strcat(file_name, ".txt");
+        fs_create(file_name);
+
+        /* write */
+        char str[BLOCK_SIZE * 64];
+        int fd_w = fs_open(file_name);
+        for(k = 0; k < BLOCK_SIZE * 64; ++k) {
+            str[k] = (char) (j + 48);
+        }
+        fs_write(fd_w, str, BLOCK_SIZE * 64);
+
+        /* read */
+        char buf[BLOCK_SIZE * 64];
+        int fd_r = fs_open(file_name);
+        fs_read(fd_r, buf, BLOCK_SIZE * 64);
+        for (k = 0; k < BLOCK_SIZE * 64; ++k) {
+            if (str[k] != buf[k]) {
+                fprintf(stderr, "fs_read()\t error: Content [%d] error: [%c] and [%c].\n", k, str[k], buf[k]);
+                break;
+            }
+        }
+
+        /* close */
+        fs_close(fd_w);
+        fs_close(fd_r);
+        memset(file_name, 0, 9);
+        free(file_name);
+    }
+
+    if(umount_fs(disk_name) < 0) {
+        fprintf(stderr, "umount_fs()\t error.\n");
+    }
+
+    return 0;
+};
