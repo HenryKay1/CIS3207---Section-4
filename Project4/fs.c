@@ -2,7 +2,8 @@
 #include <printf.h>
 #include <memory.h>
 #include <stdlib.h>
-#include "file.h"
+#include <stdio.h>
+#include "fs.h"
 #include "disk.h"
 
 super_block*    super_block_ptr;               // Super block
@@ -468,6 +469,27 @@ char find_file(char* name)
     }
 
     return -1; // file not found
+}
+
+//copy a file from your OS file system into the virtual file system
+char copy_file(char* name){
+    //open the file
+    FILE *f = fopen("textfile.txt", "rb");
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    // Read it into buffer
+    char *buffer = malloc(fsize + 1);
+    fread(name, fsize, 1, f);
+    fclose(f);
+
+    buffer[fsize] = 0;
+
+    // Now write the string buffer into your second text file
+    FILE *f2 = fopen ("textfile1", "wb");
+    fwrite (buffer, sizeof(char), sizeof(buffer), f2);
+    fclose (f2);
 }
 
 //function to find the file descriptor
